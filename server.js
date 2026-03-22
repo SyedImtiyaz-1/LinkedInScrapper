@@ -129,7 +129,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`\n  LinkedIn Scrapper running at http://localhost:${PORT}`);
-  console.log(`  Copy .env.example to .env and add your LinkedIn credentials\n`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n  LinkedIn Scrapper running at http://localhost:${PORT}`);
+    console.log(`  Copy .env.example to .env and add your LinkedIn credentials\n`);
+  });
+}

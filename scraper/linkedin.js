@@ -1,4 +1,5 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 
 const ROLE_QUERIES = {
   'project-manager': 'Project Manager',
@@ -14,16 +15,19 @@ const delay = (min, max) => {
 };
 
 async function createBrowser(headless = true) {
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH ||
+    await chromium.executablePath();
+
   return puppeteer.launch({
-    headless: headless ? 'new' : false,
     args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
+      ...chromium.args,
       '--disable-blink-features=AutomationControlled',
       '--disable-infobars',
       '--window-size=1366,768',
     ],
-    defaultViewport: { width: 1366, height: 768 }
+    defaultViewport: { width: 1366, height: 768 },
+    executablePath,
+    headless: headless ? chromium.headless : false,
   });
 }
 
