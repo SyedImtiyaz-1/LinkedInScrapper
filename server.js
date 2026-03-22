@@ -15,10 +15,6 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory job storage
-const jobs = new Map();
-let jobCounter = 0;
-
 // Scrape endpoint (live LinkedIn)
 app.post('/api/scrape', async (req, res) => {
   const { email, password, roles, location, maxResults } = req.body;
@@ -30,36 +26,24 @@ app.post('/api/scrape', async (req, res) => {
     return res.status(400).json({ error: 'Select at least one role to scrape.' });
   }
 
-  const jobId = `job_${++jobCounter}_${Date.now()}`;
-  jobs.set(jobId, { status: 'running', progress: 0, data: [], error: null, startedAt: new Date().toISOString() });
+  try {
+    const result = await scrapeLinkedIn({
+      email,
+      password,
+      roles,
+      location: location || '',
+      maxResults: parseInt(maxResults) || 25,
+      headless: process.env.HEADLESS !== 'false'
+    });
 
-  res.json({ jobId, message: 'Scraping started' });
-
-  // Run scraper in background
-  scrapeLinkedIn({
-    email,
-    password,
-    roles,
-    location: location || '',
-    maxResults: parseInt(maxResults) || 25,
-    headless: process.env.HEADLESS !== 'false'
-  }).then(result => {
-    const job = jobs.get(jobId);
     if (result.success) {
-      job.status = 'completed';
-      job.data = result.data;
-      job.progress = 100;
+      res.json({ success: true, data: result.data, count: result.data.length });
     } else {
-      job.status = 'failed';
-      job.error = result.error;
+      res.status(500).json({ error: result.error });
     }
-    job.completedAt = new Date().toISOString();
-  }).catch(err => {
-    const job = jobs.get(jobId);
-    job.status = 'failed';
-    job.error = err.message;
-    job.completedAt = new Date().toISOString();
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Demo scrape endpoint (no credentials needed)
@@ -72,15 +56,6 @@ app.post('/api/demo', (req, res) => {
 
   const data = generateDemoData(roles, location || '');
   res.json({ success: true, data, count: data.length, mode: 'demo' });
-});
-
-// Job status endpoint
-app.get('/api/job/:jobId', (req, res) => {
-  const job = jobs.get(req.params.jobId);
-  if (!job) {
-    return res.status(404).json({ error: 'Job not found' });
-  }
-  res.json(job);
 });
 
 // Export as CSV

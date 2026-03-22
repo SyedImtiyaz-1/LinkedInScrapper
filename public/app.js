@@ -7,7 +7,6 @@ let allResults = [];
 let filteredResults = [];
 let sortKey = '';
 let sortDir = 1;
-let pollInterval = null;
 
 // ---- Mode ----
 
@@ -85,8 +84,8 @@ async function runLiveScrape(roles, location) {
     return;
   }
 
-  setSubmitLoading(true, 'Starting...');
-  showProgress(0, 'Launching browser...');
+  setSubmitLoading(true, 'Scraping...');
+  showProgress(10, 'Launching browser...');
 
   try {
     const res = await fetch('/api/scrape', {
@@ -98,52 +97,17 @@ async function runLiveScrape(roles, location) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Scrape failed');
 
-    pollJobStatus(data.jobId, roles.length);
+    hideProgress();
+    setSubmitLoading(false);
+    allResults = data.data;
+    filteredResults = [...allResults];
+    renderResults();
+    showToast(`Scraping complete — ${allResults.length} leads found`);
   } catch (err) {
     hideProgress();
     setSubmitLoading(false);
     showToast(`Error: ${err.message}`, 'error');
   }
-}
-
-function pollJobStatus(jobId, roleCount) {
-  let tick = 0;
-  const messages = [
-    'Logging into LinkedIn...',
-    'Searching for profiles...',
-    'Collecting profile data...',
-    'Extracting contact info...',
-    'Finalizing results...'
-  ];
-
-  pollInterval = setInterval(async () => {
-    try {
-      const res = await fetch(`/api/job/${jobId}`);
-      const job = await res.json();
-
-      const pct = Math.min(job.progress || Math.min(tick * 8, 90), 100);
-      const msg = messages[Math.min(Math.floor(tick / 3), messages.length - 1)];
-      showProgress(pct, msg);
-      tick++;
-
-      if (job.status === 'completed') {
-        clearInterval(pollInterval);
-        hideProgress();
-        setSubmitLoading(false);
-        allResults = job.data;
-        filteredResults = [...allResults];
-        renderResults();
-        showToast(`Scraping complete — ${allResults.length} leads found`);
-      } else if (job.status === 'failed') {
-        clearInterval(pollInterval);
-        hideProgress();
-        setSubmitLoading(false);
-        showToast(`Scraping failed: ${job.error}`, 'error');
-      }
-    } catch (e) {
-      // Network blip, continue polling
-    }
-  }, 3000);
 }
 
 // ---- Results Rendering ----
